@@ -182,6 +182,14 @@ Then:
   altered. It has to find what we changed. A checker that compares row counts
   will not.
 
+This implementation uses an indexed document-store shape locally: the primary
+transaction key is account + transaction instant + direction + amount + category
++ merchant; account/month and message-id indexes serve the three query paths.
+The production equivalent should use DynamoDB partition keys for account/month
+and a GSI for message lookup. At 100,000 transactions the expected
+`ScannedCount/Count` figures are account-month `~8,333/~8,333`, category totals
+`~50,000/1`, and message lookup `1/1`.
+
 ---
 
 ## Rules

@@ -21,7 +21,21 @@ public final class Backfill {
     }
 
     public Result run() {
-        throw new UnsupportedOperationException("backfill is not implemented");
+        long read = 0;
+        long written = 0;
+        long skipped = 0;
+        for (var txn : source.all()) {
+            read++;
+            boolean exists = txn.sourceMessageIds().stream()
+                    .anyMatch(messageId -> target.byMessageId(messageId).isPresent());
+            if (exists) {
+                skipped++;
+                continue;
+            }
+            target.save(txn);
+            written++;
+        }
+        return new Result(read, written, skipped);
     }
 
     public record Result(long read, long written, long skipped) {}

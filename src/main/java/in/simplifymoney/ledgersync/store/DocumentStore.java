@@ -33,4 +33,9 @@ public interface DocumentStore {
     Optional<NormalizedTxn> byMessageId(String messageId);
 
     void save(NormalizedTxn txn);
+
+    /** Full scan used only by consistency tooling, never by serving queries. */
+    default List<NormalizedTxn> all() {
+        throw new UnsupportedOperationException("full document-store scans are not supported");
+    }
 }

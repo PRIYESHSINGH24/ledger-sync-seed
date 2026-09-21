@@ -63,7 +63,7 @@ public final class HdfcSmsParser implements MessageParser {
 
         Matcher card = CARD.matcher(body);
         if (card.find()) {
-            return build(m, card.group("acct"), card.group("when"),
+                        return buildCard(m, card.group("acct"), card.group("when"),
                     Direction.DEBIT, card.group("merchant"));
         }
 
@@ -78,4 +78,13 @@ public final class HdfcSmsParser implements MessageParser {
         return Optional.of(new ParsedTxn(acct, at, dir, amount, merchant.trim(),
                 Amounts.statedBalance(m.body()), m.messageId()));
     }
+
+        private Optional<ParsedTxn> buildCard(RawMessage m, String acct, String when,
+                                                                                  Direction dir, String merchant) {
+                BigDecimal amount = Amounts.first(m.body());
+                OffsetDateTime at = Dates.ist(when);
+                if (amount == null || at == null) return Optional.empty();
+                return Optional.of(new ParsedTxn(acct, at, dir, amount, merchant.trim(),
+                                null, m.messageId()));
+        }
 }

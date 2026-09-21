@@ -2,8 +2,14 @@ package in.simplifymoney.ledgersync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import in.simplifymoney.ledgersync.ingest.IngestService;
 import in.simplifymoney.ledgersync.parse.Amounts;
+import in.simplifymoney.ledgersync.parse.Parsers;
+import in.simplifymoney.ledgersync.report.Reports;
+import in.simplifymoney.ledgersync.store.InMemoryLedgerStore;
 import java.math.BigDecimal;
+import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -42,7 +48,45 @@ class AmountsTest {
     }
 
     @Test
+    void readsTheTransactionAmountBeforeTheBalance() {
+        assertEquals(new BigDecimal("5.00"),
+                Amounts.first("Rs.5 debited from a/c **4821 on 04-07-26 at 07:19 to UPI/WATER CAN. "
+                        + "Avl Bal: Rs.92,213.10. Not you? Call 18002586161"));
+    }
+
+    @Test
     void ignoresAMessageWithNoAmountAtAll() {
         assertEquals(null, Amounts.first("Your Swiggy order is on the way!"));
+    }
+
+    @Test
+    void keepsSelfTransfersSeparateFromRegularSpendingAndIncome() throws Exception {
+        var store = new InMemoryLedgerStore();
+        new IngestService(new Parsers(), store).ingestFile(Path.of("fixtures/corpus-a.jsonl"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> accounts = (Map<String, Object>) Reports.summary(store.all()).get("accounts");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> acct4821 = (Map<String, Object>) accounts.get("4821");
+
+        assertEquals("87068.38", acct4821.get("spend"));
+        assertEquals("101340.83", acct4821.get("income"));
+        assertEquals("2357.51", acct4821.get("micro_total"));
+        assertEquals("25000.00", acct4821.get("transferred_out"));
+        assertEquals("6000.00", acct4821.get("transferred_in"));
+    }
+
+    @Test
+    void doesNotTreatExternalImpsTransfersAsSelfTransfers() throws Exception {
+        var store = new InMemoryLedgerStore();
+        new IngestService(new Parsers(), store).ingestFile(Path.of("fixtures/corpus-a.jsonl"));
+
+        long rahulSharmaDebits = store.all().stream()
+                .filter(t -> "4821".equals(t.accountLast4()))
+                .filter(t -> "IMPS/P2A/RAHUL SHARMA".equals(t.merchant()))
+                .filter(t -> t.category() == in.simplifymoney.ledgersync.model.Category.SPEND)
+                .count();
+
+        assertEquals(1, rahulSharmaDebits);
     }
 }
